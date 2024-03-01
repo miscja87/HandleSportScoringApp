@@ -16,13 +16,14 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "requireFullScreen": true            
+      "requireFullScreen": true
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.handlesport.scoring.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -34,6 +35,11 @@
           "initialOrientation": "LANDSCAPE"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8f2fc71e-7ee1-4976-9ca1-ad21601931ac"
+      }
+    }
   }
 }

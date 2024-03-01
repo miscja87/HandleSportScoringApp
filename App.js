@@ -109,8 +109,7 @@ function MainScreen({ route, navigation }) {
         setRedScore(msg['red']);
         setBlueScore(msg['blue']);
         changeMatchStatus(msg['state']);
-        //ToastAndroid.show('Synchronized', ToastAndroid.SHORT);
-        Alert.alert("sync");
+        ToastAndroid.show('Synchronized', ToastAndroid.SHORT);
     }
 
     /* Check if state update */
@@ -386,8 +385,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     //alignItems: 'center',
     backgroundColor: '#252830',
-    padding: 2,
-    paddingTop: 10
+    padding: 2
   },
   empty: {
     flex: 1
