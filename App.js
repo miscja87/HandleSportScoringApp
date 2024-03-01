@@ -383,7 +383,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'center',
-    //alignItems: 'center',
     backgroundColor: '#252830',
     padding: 2
   },
