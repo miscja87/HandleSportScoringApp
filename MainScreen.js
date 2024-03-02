@@ -27,10 +27,6 @@ const MainScreen = ({ route, navigation }) => {
     const [oneButtonMode, setOneButtonMode] = React.useState(false);
     const [blueOnLeftMode, setBlueOnLeftMode] = React.useState(true);
 
-    /* ring, referee properties */
-    const [ringLabel, setRingLabel] = React.useState('1');
-    const [refereeLabel, setRefereeLabel] = React.useState('1');
-
     /* Request score */
     function requestScore()
     {
@@ -219,8 +215,8 @@ const MainScreen = ({ route, navigation }) => {
                 },
                 ]}>           
                 <View style={styles.centerPanel}>              
-                    <Text style={styles.optionsText}>RING {ringLabel}</Text>
-                    <Text style={styles.optionsText}>REFEREE {refereeLabel}</Text>
+                    <Text style={styles.optionsText}>RING {idRing}</Text>
+                    <Text style={styles.optionsText}>REFEREE {idReferee}</Text>
                     <Text style={[styles.optionsText, styles.uppercaseText, isMatchStatusStopped() ? styles.redText : styles.greenText]}>{matchStatus}</Text>
                     <Pressable
                         style={[styles.button, styles.buttonClose]}
