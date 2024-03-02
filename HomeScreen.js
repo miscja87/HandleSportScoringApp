@@ -1,6 +1,7 @@
 import React from 'react';
 import {  View, Text, TextInput, Pressable, Alert } from 'react-native';
 import styles from './Styles';
+import PackageInfo from './package.json';
 
 /* Home screen */
 const HomeScreen = ({ navigation }) => {
@@ -33,7 +34,7 @@ const HomeScreen = ({ navigation }) => {
 
     return (
         <View style={[styles.container, { alignItems: 'center'}]}>
-        <Text style={[styles.titleText, {fontSize: 30}]}>Welcome to HandleSport Scoring System</Text>
+        <Text style={[styles.titleText, {fontSize: 30}]}>HandleSport Scoring v{PackageInfo.version}</Text>
         <TextInput
             style={styles.input}
             onChangeText={onChangeToken}
