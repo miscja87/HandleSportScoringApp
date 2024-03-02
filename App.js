@@ -400,13 +400,15 @@ const styles = StyleSheet.create({
     borderColor: 'white',
     borderWidth: 1,
     backgroundColor: 'blue',
+    justifyContent: 'center'
   },
   redButton: {
     flex: 5,
     alignItems : 'center',
     borderColor: 'white',        
     borderWidth: 1,
-    backgroundColor: 'red'
+    backgroundColor: 'red',
+    justifyContent: 'center'
   },
   pointText: {
     color: '#fff',
