@@ -1,6 +1,6 @@
 /* Setup websocket */
-export function setupWebSocket(onopenCallback, onmessageCallback)
-{
+export const setupWebSocket = (onopenCallback, onmessageCallback) => {
+    
     /* Create ws */
     var WS = new WebSocket('wss://handlesport-websocket.fly.dev');
 
@@ -15,17 +15,15 @@ export function setupWebSocket(onopenCallback, onmessageCallback)
     }
 
     return WS;
-}
+};
 
 /* Close websocket */
-export function closeWebSocket(WS)
-{
+export const closeWebSocket = (WS) => {
     WS.close();
-}
+};
 
 /* Setup websocket */
-export function sendMessage(WS, $msg)
-{
+export const sendMessage = (WS, $msg) => {
     /* Check ws state */
     if (WS.readyState == 1)
     {
@@ -40,4 +38,4 @@ export function sendMessage(WS, $msg)
         /* Send message */
         WS.send(JSON.stringify($msg));
     }
-}
+};
