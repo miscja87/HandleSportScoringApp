@@ -18,8 +18,11 @@ export const setupWebSocket = (onopenCallback, onmessageCallback) => {
 };
 
 /* Close websocket */
-export const closeWebSocket = (WS) => {
+export const closeWebSocket = (WS, onopenCallback, onmessageCallback) => {
+    WS.removeEventListener("open", onopenCallback);
+    WS.removeEventListener("message", onmessageCallback);    
     WS.close();
+    WS = null;
 };
 
 /* Setup websocket */

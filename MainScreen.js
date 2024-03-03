@@ -33,12 +33,12 @@ const MainScreen = ({ route, navigation }) => {
         $msg = { key: global.api_key, action : 'request_score', id_event : idEvent, id_ring: idRing, referee : idReferee };
         
         /* Send message */
-        sendMessage(WS, $msg);
+        sendMessage(global.WS, $msg);
     }
 
     /* Received message */
     function checkMessage(msg)
-    {
+    {        
         /* Check if reset or response */
         var actions = ['reset_score', 'response_score'];
         if (actions.includes(msg['action']) && msg['id_event'] == idEvent && msg['id_ring'] == idRing && msg['referee'] == idReferee)
@@ -80,7 +80,7 @@ const MainScreen = ({ route, navigation }) => {
         $msg = { key: global.api_key, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : newRedScore, blue : newBlueScore };
         
         /* Send score */
-        sendMessage(WS, $msg);
+        sendMessage(global.WS, $msg);
 
         /* Set scores */
         setRedScore(newRedScore);
@@ -153,8 +153,14 @@ const MainScreen = ({ route, navigation }) => {
     }
 
     /* reload */
+    const goBack = () => {
+        closeWebSocket(global.WS, requestScore, checkMessage);
+        navigation.navigate('Home');;
+    }    
+
+    /* reload */
     const reload = () => {
-        closeWebSocket(WS);
+        closeWebSocket(global.WS, requestScore, checkMessage);
         global.WS = setupWebSocket(requestScore, checkMessage);
     }
 
@@ -235,7 +241,7 @@ const MainScreen = ({ route, navigation }) => {
                     </Pressable>
                     <Pressable
                         style={[styles.button, styles.buttonClose]}
-                        onPress={() => navigation.navigate('Home') }>
+                        onPress={() => goBack() }>
                         <Text style={styles.textStyle}>EXIT ❌</Text>
                     </Pressable>
                 </View>
