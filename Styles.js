@@ -7,6 +7,12 @@ const styles = StyleSheet.create({
       marginBottom: 10,
       width: 120
     },
+    alertTitleStyle: {
+      fontSize: 30
+    },
+    alertTextStyle: {
+      fontSize: 20
+    },
     proceedButton: {
       padding: 10,
       elevation: 2,
