@@ -1,5 +1,11 @@
+-- start
+npx expo start
+
 -- build android apk
 eas build --platform android --profile preview
 
 -- build android
 eas build --platform android
+
+-- submit to play store
+eas submit --platform android
