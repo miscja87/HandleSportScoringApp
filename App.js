@@ -12,6 +12,7 @@ async function changeScreenOrientation() {
 
 /* Global var */
 global.api_key = 'ad258edb273786ddff4a12fcb274eca4';
+global.api_url = 'https://www.handlesport.com/';
 
 /* Create navigation stack */
 const Stack = createNativeStackNavigator();

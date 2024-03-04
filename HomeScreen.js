@@ -15,7 +15,7 @@ const HomeScreen = ({ navigation }) => {
 
     /* Check new vesion */
     const checkNewVersion = () => {
-        return fetch('https://www.handlesport.com/api/getScoringApp?key=' + global.api_key)
+        return fetch(global.api_url + 'api/getScoringApp?key=' + global.api_key)
         .then(response => response.json())
         .then(json => {
             if (json != null && json.result && PackageInfo.version != json.version)
@@ -30,7 +30,7 @@ const HomeScreen = ({ navigation }) => {
 
     /* Authentication by code */
     const authenticate = (code) => {
-        return fetch('https://www.handlesport.com/match/ctrlwsbycode?key=' + global.api_key + '&code=' + code)
+        return fetch(global.api_url + 'match/ctrlwsbycode?key=' + global.api_key + '&code=' + code)
         .then(response => response.json())
         .then(json => {
             if (json != null)
