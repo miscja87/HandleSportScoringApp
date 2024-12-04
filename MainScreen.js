@@ -1,6 +1,8 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import {  View, Text, ToastAndroid, Pressable, Vibration } from 'react-native';
 import { setupWebSocket, closeWebSocket, sendMessage } from './WebSocket';
+import uuid from 'react-native-uuid';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import styles from './Styles';
 
 /* Main screen */
@@ -21,11 +23,15 @@ const MainScreen = ({ route, navigation }) => {
     global.backupBlueScore;
 
     /* match properties */
-    const [blueScore, setBlueScore] = React.useState(0);
-    const [redScore, setRedScore] = React.useState(0);
-    const [matchStatus, setMatchStatus] = React.useState('STOP');
-    const [oneButtonMode, setOneButtonMode] = React.useState(false);
-    const [blueOnLeftMode, setBlueOnLeftMode] = React.useState(true);
+    const [blueScore, setBlueScore] = useState(0);
+    const [blueScorePending, setBlueScorePending] = useState(false);
+
+    const [redScore, setRedScore] = useState(0);
+    const [redScorePending, setRedScorePending] = useState(false);
+
+    const [matchStatus, setMatchStatus] = useState('STOP');
+    const [oneButtonMode, setOneButtonMode] = useState(false);
+    const [blueOnLeftMode, setBlueOnLeftMode] = useState(true);
 
     /* Request score */
     function requestScore()
@@ -48,6 +54,12 @@ const MainScreen = ({ route, navigation }) => {
             changeMatchStatus(msg['state']);
             ToastAndroid.show('Synchronized', ToastAndroid.SHORT);
         }
+
+        /* Ack score */
+        if (msg['action'] == 'ack_score' && msg['id_event'] == idEvent && msg['id_ring'] == idRing)
+        {
+            ackScore(msg['uuid']);
+        }       
 
         /* Check if state update */
         if (msg['action'] == 'update_state' && msg['id_event'] == idEvent && msg['id_ring'] == idRing)
@@ -72,36 +84,79 @@ const MainScreen = ({ route, navigation }) => {
     function isMatchStatusPlay()
     {
         return matchStatus == 'PLAY';
-    }  
+    }
 
-    /* Send score */
-    function sendScore(newRedScore, newBlueScore)
+    /* Send local score */
+    function sendLocalScore(newRedScore, newBlueScore)
     {   
-        $msg = { key: global.api_key, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : newRedScore, blue : newBlueScore };
-        
-        /* Send score */
-        sendMessage(global.WS, $msg);
+        id = uuid.v4();
+        $msg = { key: global.api_key, uuid : id, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : newRedScore, blue : newBlueScore };        
+        AsyncStorage.setItem(id, JSON.stringify($msg)).then(() => {
+            
+            /* Send score */
+            sendMessage(global.WS, $msg);
 
-        /* Set scores */
-        setRedScore(newRedScore);
-        setBlueScore(newBlueScore);
+            /* Vibration */
+            Vibration.vibrate(100);
+        });
+    }    
 
-        /* Vibration */
-        Vibration.vibrate(100);
-    }  
+    /* Ack score */
+    function ackScore($uuid)
+    {
+        AsyncStorage.getItem($uuid).then((localScore) => {
+
+            if (localScore)
+            {
+                /* Parse local score */
+                parsedlocalScore = JSON.parse(localScore);
+
+                /* Update red score */
+                setRedScorePending(false);
+                setRedScore((redScore) => 
+                    parseFloat(Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10) >= 0 ?
+                    Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10 :
+                    '0');
+
+                /* Update blue score */
+                setBlueScorePending(false);
+                setBlueScore((blueScore) => 
+                    parseFloat(Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10) >= 0 ?
+                    Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10 :
+                    '0');
+
+                /* Remove item from local storage */
+                AsyncStorage.removeItem($uuid);
+            }          
+        });
+    }
+
+    /* Get backup red uuid */
+    function getBackupRedUuid()
+    {
+        return idEvent + '-' + idRing + '-' + idReferee + '-backup-red';
+    }
+
+    /* Get backup blue uuid */
+    function getBackupBlueUuid()
+    {
+        return idEvent + '-' + idRing + '-' + idReferee + '-backup-blue';
+    }    
 
     /* update red score */
     const updateRedScore = (point) => {    
 
         if (isMatchStatusPlay())
-        {
-        /* Set backup score */
-        global.backupRedScore = redScore;
+        {            
+            /* Set backup score */
+            redBackupUuid = getBackupRedUuid();
+            redBackupScore = parseFloat(0 - point);
+            redBackupScoreMsg = { key: global.api_key, uuid : redBackupUuid, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : redBackupScore, blue : "0" };
+            AsyncStorage.setItem(redBackupUuid, JSON.stringify(redBackupScoreMsg));
 
-        /* Set new score */
-        newScore = Math.round((parseFloat(redScore) + parseFloat(point)) * 10) / 10;
-        newScore = parseFloat(newScore) >= 0 ? newScore : '0';
-        sendScore(newScore, blueScore);
+            /* Set new score */
+            setRedScorePending(true);
+            sendLocalScore(point, "0");
         }
     };
 
@@ -110,13 +165,15 @@ const MainScreen = ({ route, navigation }) => {
 
         if (isMatchStatusPlay())
         {     
-        /* Set backup score */
-        global.backupBlueScore = blueScore;
+            /* Set backup score */
+            blueBackupUuid = getBackupBlueUuid();
+            blueBackupScore = parseFloat(0 - point);
+            blueBackupScoreMsg = { key: global.api_key, uuid : blueBackupUuid, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : "0", blue : blueBackupScore };
+            AsyncStorage.setItem(blueBackupUuid, JSON.stringify(blueBackupScoreMsg));
 
-        /* Set new score */
-        newScore = Math.round((parseFloat(blueScore) + parseFloat(point)) * 10) / 10;
-        newScore = parseFloat(newScore) >= 0 ? newScore : '0';
-        sendScore(redScore, newScore);
+            /* Set new score */
+            setBlueScorePending(true);
+            sendLocalScore("0", point);
         }
     };
 
@@ -124,14 +181,38 @@ const MainScreen = ({ route, navigation }) => {
     const undoRedScore = () => {    
         
         /* Set backup score */
-        sendScore(global.backupRedScore, blueScore);
+        redBackupUuid = getBackupRedUuid();
+        AsyncStorage.getItem(redBackupUuid).then((redBackupScore) => {
+
+            if (redBackupScore)
+            {
+                /* Send backup red score */
+                parsedBackupScore = JSON.parse(redBackupScore);
+                sendLocalScore(parsedBackupScore['red'], "0");
+
+                /* Remove item from local storage */
+                AsyncStorage.removeItem(redBackupUuid);
+            }
+        });
     }; 
 
     /* undo blue score */
     const undoBlueScore = () => {    
         
         /* Set backup score */
-        sendScore(redScore, global.backupBlueScore);
+        blueBackupUuid = getBackupBlueUuid();
+        AsyncStorage.getItem(blueBackupUuid).then((blueBackupScore) => {
+
+            if (blueBackupScore)
+            {                
+                /* Send backup blue score */
+                parsedBackupScore = JSON.parse(blueBackupScore);
+                sendLocalScore("0", parsedBackupScore['blue']);
+
+                /* Remove item from local storage */
+                AsyncStorage.removeItem(blueBackupUuid);
+            }
+        });
     }; 
 
     /* Check if one button mode */
@@ -152,6 +233,18 @@ const MainScreen = ({ route, navigation }) => {
         return specialtyCode === 'SP';
     }
 
+    /* Check if blue score pending */
+    function isBlueScorePending()
+    {
+        return blueScorePending;
+    }
+    
+    /* Check if red score pending */
+    function isRedScorePending()
+    {
+        return redScorePending;
+    }    
+
     /* reload */
     const goBack = () => {
         closeWebSocket(global.WS, requestScore, checkMessage);
@@ -169,7 +262,7 @@ const MainScreen = ({ route, navigation }) => {
         global.WS = setupWebSocket(requestScore, checkMessage);
     }
 
-    React.useEffect(() => {
+    useEffect(() => {
         onScreenLoad();
     }, [])
 
@@ -198,7 +291,9 @@ const MainScreen = ({ route, navigation }) => {
                 },
                 ]}>
                 <View style={ isBlueOnLeftMode() ? styles.blueButton : styles.redButton} onTouchEnd={() => isBlueOnLeftMode() ? undoBlueScore() : undoRedScore()}>
-                    <Text style={styles.pointText}>{ isBlueOnLeftMode() ? blueScore : redScore} ↺</Text>
+                    <Text style={ isBlueOnLeftMode() ? (isBlueScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText]) : (isRedScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText])}>
+                        { isBlueOnLeftMode() ? blueScore : redScore} ↺
+                    </Text>
                 </View>
                 <View style={styles.empty}>
                 </View>                      
@@ -255,7 +350,9 @@ const MainScreen = ({ route, navigation }) => {
                 },
                 ]}>
                 <View style={ isBlueOnLeftMode() ? styles.redButton : styles.blueButton} onTouchEnd={() => isBlueOnLeftMode() ? undoRedScore() : undoBlueScore()}>              
-                    <Text style={styles.pointText}>{ isBlueOnLeftMode() ? redScore : blueScore} ↺</Text>
+                    <Text style={ isBlueOnLeftMode() ? (isRedScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText]) : (isBlueScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText])}>
+                        { isBlueOnLeftMode() ? redScore : blueScore} ↺
+                    </Text>
                 </View>
                 <View style={styles.empty}>
                 </View>                           

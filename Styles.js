@@ -2,7 +2,8 @@ import {  StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
     button: {
-      padding: 10,
+      paddingTop: 20,
+      paddingBottom: 20,
       elevation: 2,
       marginBottom: 10,
       width: 120
@@ -72,6 +73,9 @@ const styles = StyleSheet.create({
     },
     greenText: {
       color: '#1bc98e',
+    },    
+    yellowText: {
+      color: '#ffff00',
     },
     uppercaseText: {
       textTransform: 'uppercase',
