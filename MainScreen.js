@@ -150,7 +150,7 @@ const MainScreen = ({ route, navigation }) => {
         {            
             /* Set backup score */
             redBackupUuid = getBackupRedUuid();
-            redBackupScore = parseFloat(0 - point);
+            redBackupScore = parseFloat(0 - (parseFloat(redScore) + parseFloat(point) < 0 ? - parseFloat(redScore) : point));
             redBackupScoreMsg = { key: global.api_key, uuid : redBackupUuid, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : redBackupScore, blue : "0" };
             AsyncStorage.setItem(redBackupUuid, JSON.stringify(redBackupScoreMsg));
 
@@ -167,7 +167,7 @@ const MainScreen = ({ route, navigation }) => {
         {     
             /* Set backup score */
             blueBackupUuid = getBackupBlueUuid();
-            blueBackupScore = parseFloat(0 - point);
+            blueBackupScore = parseFloat(0 - (parseFloat(blueScore) + parseFloat(point) < 0 ? - parseFloat(blueScore) : point));
             blueBackupScoreMsg = { key: global.api_key, uuid : blueBackupUuid, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : "0", blue : blueBackupScore };
             AsyncStorage.setItem(blueBackupUuid, JSON.stringify(blueBackupScoreMsg));
 
