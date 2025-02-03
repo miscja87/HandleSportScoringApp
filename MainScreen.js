@@ -31,7 +31,7 @@ const MainScreen = ({ route, navigation }) => {
 
     const [matchStatus, setMatchStatus] = useState('STOP');
     const [oneButtonMode, setOneButtonMode] = useState(false);
-    const [blueOnLeftMode, setBlueOnLeftMode] = useState(true);
+    const [blueOnLeftMode, setBlueOnLeftMode] = useState(false);
 
     /* Request score */
     function requestScore()
