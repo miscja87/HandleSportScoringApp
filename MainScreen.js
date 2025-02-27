@@ -113,17 +113,39 @@ const MainScreen = ({ route, navigation }) => {
 
                 /* Update red score */
                 setRedScorePending(false);
-                setRedScore((redScore) => 
-                    parseFloat(Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10) >= 0 ?
-                    Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10 :
-                    '0');
+
+                /* Check if sparring */
+                if (isSparring())
+                {
+                    setRedScore((redScore) => 
+                        parseFloat(Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10)
+                    );
+                }
+                else
+                {
+                    setRedScore((redScore) => 
+                        parseFloat(Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10) >= 0 ?
+                        Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10 :
+                        '0');
+                }
 
                 /* Update blue score */
                 setBlueScorePending(false);
-                setBlueScore((blueScore) => 
-                    parseFloat(Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10) >= 0 ?
-                    Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10 :
-                    '0');
+                
+                /* Check if sparring */
+                if (isSparring())
+                {
+                    setBlueScore((blueScore) => 
+                        parseFloat(Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10)
+                    );
+                }
+                else
+                {
+                    setBlueScore((blueScore) => 
+                        parseFloat(Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10) >= 0 ?
+                        Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10 :
+                        '0');                    
+                }
 
                 /* Remove item from local storage */
                 AsyncStorage.removeItem($uuid);
