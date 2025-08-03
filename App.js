@@ -4,6 +4,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from './HomeScreen';
 import MainScreen from './MainScreen';
+import 'react-native-get-random-values';
+import 'react-native-url-polyfill/auto';
 
 /* Lock screen orientation lanscape */
 async function changeScreenOrientation() {

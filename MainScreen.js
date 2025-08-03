@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import {  View, Text, ToastAndroid, Pressable, Vibration } from 'react-native';
-import { setupWebSocket, closeWebSocket, sendMessage } from './WebSocket';
-import uuid from 'react-native-uuid';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loginAsReferee, onSnapshot, getStatusDocRef, getRefereeDocRef, loadRefereeDoc, updateRefereeDoc } from './Firestore';
 import styles from './Styles';
 
 /* Main screen */
@@ -15,57 +13,62 @@ const MainScreen = ({ route, navigation }) => {
     const idReferee = JSON.stringify(id_referee);
     const specialtyCode = specialty;
 
-    /* Web socket */
-    global.WS;
-
-    /* Global vars */  
-    global.backupRedScore;
-    global.backupBlueScore;
+    // Constants
+    const STATUS_OK = 'ok';
+    const ACTION_RESET_SCORE = 'reset_score';
+    const ACTION_UPDATE_SCORE = 'update_score';
+    const STATUS_PLAY = 'PLAY';
+    const STATUS_STOP = 'STOP';
 
     /* match properties */
-    const [blueScore, setBlueScore] = useState(0);
-    const [blueScorePending, setBlueScorePending] = useState(false);
-
-    const [redScore, setRedScore] = useState(0);
-    const [redScorePending, setRedScorePending] = useState(false);
+    const [blueScore, setBlueScore] = useState(isSparring() ? 0 : 10.0);
+    const [redScore, setRedScore] = useState(isSparring() ? 0 : 10.0);
 
     const [matchStatus, setMatchStatus] = useState('STOP');
     const [oneButtonMode, setOneButtonMode] = useState(false);
     const [blueOnLeftMode, setBlueOnLeftMode] = useState(false);
 
-    /* Request score */
-    function requestScore()
+    function login()
     {
-        $msg = { key: global.api_key, action : 'request_score', id_event : idEvent, id_ring: idRing, referee : idReferee };
-        
-        /* Send message */
-        sendMessage(global.WS, $msg);
-    }
+        /* Login as referee */
+        loginAsReferee(idEvent, idRing, idReferee, STATUS_OK).then(() => {
 
-    /* Received message */
-    function checkMessage(msg)
-    {        
-        /* Check if reset or response */
-        var actions = ['reset_score', 'response_score'];
-        if (actions.includes(msg['action']) && msg['id_event'] == idEvent && msg['id_ring'] == idRing && msg['referee'] == idReferee)
-        {
-            setRedScore(msg['red']);
-            setBlueScore(msg['blue']);
-            changeMatchStatus(msg['state']);
-            ToastAndroid.show('Synchronized', ToastAndroid.SHORT);
-        }
+            /* Load initial referee data */
+            loadRefereeDoc(idEvent, idRing, idReferee).then((data) => {
+                if (data && data.score)
+                {
+                    setRedScore(Number.isInteger(data.score.red) ? data.score.red : parseFloat(data.score.red).toFixed(1));
+                    setBlueScore(Number.isInteger(data.score.blue) ? data.score.blue : parseFloat(data.score.blue).toFixed(1));
+                }
+            });
 
-        /* Ack score */
-        if (msg['action'] == 'ack_score' && msg['id_event'] == idEvent && msg['id_ring'] == idRing)
-        {
-            ackScore(msg['uuid']);
-        }       
+            /* Setup status snapshots */
+            onSnapshot(getStatusDocRef(idEvent, idRing), (doc) => {
+                if (doc.exists())
+                {
+                    const data = doc.data();
+                    console.log("Updated status:", data.state);
+                    changeMatchStatus(data.state);
+                }
+            });
 
-        /* Check if state update */
-        if (msg['action'] == 'update_state' && msg['id_event'] == idEvent && msg['id_ring'] == idRing)
-        {
-            changeMatchStatus(msg['state']);
-        }    
+            /* Setup referee docs */
+            onSnapshot(getRefereeDocRef(idEvent, idRing, idReferee), (doc) => {
+                if (doc.exists())
+                {
+                    const data = doc.data();
+                    if (data.action && data.score && data.action === ACTION_RESET_SCORE)
+                    {
+                        setRedScore(Number.isInteger(data.score.red) ? data.score.red : parseFloat(data.score.red).toFixed(1));
+                        setBlueScore(Number.isInteger(data.score.blue) ? data.score.blue : parseFloat(data.score.blue).toFixed(1));
+                        ToastAndroid.show('Score updated from server', ToastAndroid.SHORT);
+                    }
+                }
+            });
+
+            /* Show toast */
+            ToastAndroid.show('Logged referee ' + idReferee, ToastAndroid.SHORT);
+        });
     }
 
     /* Change match status */
@@ -77,93 +80,22 @@ const MainScreen = ({ route, navigation }) => {
     /* Check match status stop */
     function isMatchStatusStopped()
     {
-        return matchStatus == 'STOP';
+        return matchStatus == STATUS_STOP;
     }
 
     /* Check match status play */
     function isMatchStatusPlay()
     {
-        return matchStatus == 'PLAY';
+        return matchStatus == STATUS_PLAY;
     }
 
-    /* Send local score */
-    function sendLocalScore(newRedScore, newBlueScore)
-    {   
-        id = uuid.v4();
-        $msg = { key: global.api_key, uuid : id, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : newRedScore, blue : newBlueScore };        
-        AsyncStorage.setItem(id, JSON.stringify($msg)).then(() => {
-            
-            /* Send score */
-            sendMessage(global.WS, $msg);
-
-            /* Vibration */
-            Vibration.vibrate(100);
-        });
-    }    
-
-    /* Ack score */
-    function ackScore($uuid)
+    /* Send score */
+    function sendScore(newRedScore, newBlueScore)
     {
-        AsyncStorage.getItem($uuid).then((localScore) => {
-
-            if (localScore)
-            {
-                /* Parse local score */
-                parsedlocalScore = JSON.parse(localScore);
-
-                /* Update red score */
-                setRedScorePending(false);
-
-                /* Check if sparring */
-                if (isSparring())
-                {
-                    setRedScore((redScore) => 
-                        parseFloat(Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10)
-                    );
-                }
-                else
-                {
-                    setRedScore((redScore) => 
-                        parseFloat(Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10) >= 0 ?
-                        Math.round((parseFloat(redScore) + parseFloat(parsedlocalScore['red'])) * 10) / 10 :
-                        '0');
-                }
-
-                /* Update blue score */
-                setBlueScorePending(false);
-                
-                /* Check if sparring */
-                if (isSparring())
-                {
-                    setBlueScore((blueScore) => 
-                        parseFloat(Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10)
-                    );
-                }
-                else
-                {
-                    setBlueScore((blueScore) => 
-                        parseFloat(Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10) >= 0 ?
-                        Math.round((parseFloat(blueScore) + parseFloat(parsedlocalScore['blue'])) * 10) / 10 :
-                        '0');                    
-                }
-
-                /* Remove item from local storage */
-                AsyncStorage.removeItem($uuid);
-            }          
-        });
+        const update = { action: ACTION_UPDATE_SCORE, score: { red: newRedScore, blue: newBlueScore } };
+        updateRefereeDoc(idEvent, idRing, idReferee, update);
+        Vibration.vibrate(100);
     }
-
-    /* Get backup red uuid */
-    function getBackupRedUuid()
-    {
-        return idEvent + '-' + idRing + '-' + idReferee + '-backup-red';
-    }
-
-    /* Get backup blue uuid */
-    function getBackupBlueUuid()
-    {
-        return idEvent + '-' + idRing + '-' + idReferee + '-backup-blue';
-    }    
 
     /* update red score */
     const updateRedScore = (point) => {    
@@ -171,14 +103,12 @@ const MainScreen = ({ route, navigation }) => {
         if (isMatchStatusPlay())
         {            
             /* Set backup score */
-            redBackupUuid = getBackupRedUuid();
-            redBackupScore = parseFloat(0 - (parseFloat(redScore) + parseFloat(point) < 0 ? - parseFloat(redScore) : point));
-            redBackupScoreMsg = { key: global.api_key, uuid : redBackupUuid, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : redBackupScore, blue : "0" };
-            AsyncStorage.setItem(redBackupUuid, JSON.stringify(redBackupScoreMsg));
+            redBackupScore = parseFloat(redScore);                        
 
             /* Set new score */
-            setRedScorePending(true);
-            sendLocalScore(point, "0");
+            const newRedScore = parseFloat(redScore) + parseFloat(point) < 0 ? 0 : parseFloat(redScore) + parseFloat(point);
+            setRedScore(Number.isInteger(newRedScore) ? newRedScore : parseFloat(newRedScore).toFixed(1));
+            sendScore(Number.isInteger(newRedScore) ? newRedScore : parseFloat(newRedScore).toFixed(1), blueScore);
         }
     };
 
@@ -188,14 +118,12 @@ const MainScreen = ({ route, navigation }) => {
         if (isMatchStatusPlay())
         {     
             /* Set backup score */
-            blueBackupUuid = getBackupBlueUuid();
-            blueBackupScore = parseFloat(0 - (parseFloat(blueScore) + parseFloat(point) < 0 ? - parseFloat(blueScore) : point));
-            blueBackupScoreMsg = { key: global.api_key, uuid : blueBackupUuid, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : "0", blue : blueBackupScore };
-            AsyncStorage.setItem(blueBackupUuid, JSON.stringify(blueBackupScoreMsg));
+            blueBackupScore = parseFloat(blueScore);
 
             /* Set new score */
-            setBlueScorePending(true);
-            sendLocalScore("0", point);
+            const newBlueScore = parseFloat(blueScore) + parseFloat(point) < 0 ? 0 : parseFloat(blueScore) + parseFloat(point);
+            setBlueScore(Number.isInteger(newBlueScore) ? newBlueScore : parseFloat(newBlueScore).toFixed(1));
+            sendScore(redScore, Number.isInteger(newBlueScore) ? newBlueScore : parseFloat(newBlueScore).toFixed(1));
         }
     };
 
@@ -203,38 +131,22 @@ const MainScreen = ({ route, navigation }) => {
     const undoRedScore = () => {    
         
         /* Set backup score */
-        redBackupUuid = getBackupRedUuid();
-        AsyncStorage.getItem(redBackupUuid).then((redBackupScore) => {
-
-            if (redBackupScore)
-            {
-                /* Send backup red score */
-                parsedBackupScore = JSON.parse(redBackupScore);
-                sendLocalScore(parsedBackupScore['red'], "0");
-
-                /* Remove item from local storage */
-                AsyncStorage.removeItem(redBackupUuid);
-            }
-        });
+        if (redBackupScore)
+        {
+            setRedScore(Number.isInteger(redBackupScore) ? redBackupScore : parseFloat(redBackupScore).toFixed(1));
+            sendScore(Number.isInteger(redBackupScore) ? redBackupScore : parseFloat(redBackupScore).toFixed(1), blueScore);
+        }
     }; 
 
     /* undo blue score */
     const undoBlueScore = () => {    
         
         /* Set backup score */
-        blueBackupUuid = getBackupBlueUuid();
-        AsyncStorage.getItem(blueBackupUuid).then((blueBackupScore) => {
-
-            if (blueBackupScore)
-            {                
-                /* Send backup blue score */
-                parsedBackupScore = JSON.parse(blueBackupScore);
-                sendLocalScore("0", parsedBackupScore['blue']);
-
-                /* Remove item from local storage */
-                AsyncStorage.removeItem(blueBackupUuid);
-            }
-        });
+        if (blueBackupScore)
+        {
+            setBlueScore(Number.isInteger(blueBackupScore) ? blueBackupScore : parseFloat(blueBackupScore).toFixed(1));
+            sendScore(redScore, Number.isInteger(blueBackupScore) ? blueBackupScore : parseFloat(blueBackupScore).toFixed(1));
+        }
     }; 
 
     /* Check if one button mode */
@@ -253,40 +165,26 @@ const MainScreen = ({ route, navigation }) => {
     function isSparring()
     {
         return specialtyCode === 'SP';
-    }
-
-    /* Check if blue score pending */
-    function isBlueScorePending()
-    {
-        return blueScorePending;
-    }
-    
-    /* Check if red score pending */
-    function isRedScorePending()
-    {
-        return redScorePending;
-    }    
+    }   
 
     /* reload */
     const goBack = () => {
-        closeWebSocket(global.WS, requestScore, checkMessage);
         navigation.navigate('Home');;
     }    
 
     /* reload */
     const reload = () => {
-        closeWebSocket(global.WS, requestScore, checkMessage);
-        global.WS = setupWebSocket(requestScore, checkMessage);
+        login();
     }
 
     /* On screen load */
     const onScreenLoad = () => {
-        global.WS = setupWebSocket(requestScore, checkMessage);
+        login();
     }
 
     useEffect(() => {
         onScreenLoad();
-    }, [])
+    }, [])    
 
     return (
         <View
@@ -313,7 +211,7 @@ const MainScreen = ({ route, navigation }) => {
                 },
                 ]}>
                 <View style={ isBlueOnLeftMode() ? styles.blueButton : styles.redButton} onTouchEnd={() => isBlueOnLeftMode() ? undoBlueScore() : undoRedScore()}>
-                    <Text style={ isBlueOnLeftMode() ? (isBlueScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText]) : (isRedScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText])}>
+                    <Text style={styles.pointText}>
                         { isBlueOnLeftMode() ? blueScore : redScore} ↺
                     </Text>
                 </View>
@@ -372,7 +270,7 @@ const MainScreen = ({ route, navigation }) => {
                 },
                 ]}>
                 <View style={ isBlueOnLeftMode() ? styles.redButton : styles.blueButton} onTouchEnd={() => isBlueOnLeftMode() ? undoRedScore() : undoBlueScore()}>              
-                    <Text style={ isBlueOnLeftMode() ? (isRedScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText]) : (isBlueScorePending() ? [styles.pointText, styles.yellowText] : [styles.pointText])}>
+                    <Text style={styles.pointText}>
                         { isBlueOnLeftMode() ? redScore : blueScore} ↺
                     </Text>
                 </View>

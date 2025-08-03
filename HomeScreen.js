@@ -44,7 +44,6 @@ const HomeScreen = ({ navigation }) => {
             }
             else
             {                
-                //setNewVersionMessage("Available new version v1.9.0. Update?")
                 setShowInvalidCodeAlert(true);
             }
         })
