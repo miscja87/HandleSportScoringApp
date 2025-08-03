@@ -4,7 +4,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { getAuth, signInWithCustomToken, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDeZGGdAEZ8yWOTm4GnZsWehpApjnXhOYQ",
+    apiKey: "***",
     authDomain: "handlesport-2k25.firebaseapp.com",
     projectId: "handlesport-2k25",
     storageBucket: "handlesport-2k25.firebasestorage.app",
