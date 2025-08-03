@@ -1,6 +1,6 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import {  View, Text, ToastAndroid, Pressable, Vibration } from 'react-native';
-import { setupWebSocket, closeWebSocket, sendMessage } from './WebSocket';
+import { loginAsReferee, onSnapshot, getStatusDocRef, getRefereeDocRef, loadRefereeDoc, updateRefereeDoc } from './Firestore';
 import styles from './Styles';
 
 /* Main screen */
@@ -13,47 +13,62 @@ const MainScreen = ({ route, navigation }) => {
     const idReferee = JSON.stringify(id_referee);
     const specialtyCode = specialty;
 
-    /* Web socket */
-    global.WS;
-
-    /* Global vars */  
-    global.backupRedScore;
-    global.backupBlueScore;
+    // Constants
+    const STATUS_OK = 'ok';
+    const ACTION_RESET_SCORE = 'reset_score';
+    const ACTION_UPDATE_SCORE = 'update_score';
+    const STATUS_PLAY = 'PLAY';
+    const STATUS_STOP = 'STOP';
 
     /* match properties */
-    const [blueScore, setBlueScore] = React.useState(0);
-    const [redScore, setRedScore] = React.useState(0);
-    const [matchStatus, setMatchStatus] = React.useState('STOP');
-    const [oneButtonMode, setOneButtonMode] = React.useState(false);
-    const [blueOnLeftMode, setBlueOnLeftMode] = React.useState(true);
+    const [blueScore, setBlueScore] = useState(isSparring() ? 0 : 10.0);
+    const [redScore, setRedScore] = useState(isSparring() ? 0 : 10.0);
 
-    /* Request score */
-    function requestScore()
+    const [matchStatus, setMatchStatus] = useState('STOP');
+    const [oneButtonMode, setOneButtonMode] = useState(false);
+    const [blueOnLeftMode, setBlueOnLeftMode] = useState(false);
+
+    function login()
     {
-        $msg = { key: global.api_key, action : 'request_score', id_event : idEvent, id_ring: idRing, referee : idReferee };
-        
-        /* Send message */
-        sendMessage(global.WS, $msg);
-    }
+        /* Login as referee */
+        loginAsReferee(idEvent, idRing, idReferee, STATUS_OK).then(() => {
 
-    /* Received message */
-    function checkMessage(msg)
-    {        
-        /* Check if reset or response */
-        var actions = ['reset_score', 'response_score'];
-        if (actions.includes(msg['action']) && msg['id_event'] == idEvent && msg['id_ring'] == idRing && msg['referee'] == idReferee)
-        {
-            setRedScore(msg['red']);
-            setBlueScore(msg['blue']);
-            changeMatchStatus(msg['state']);
-            ToastAndroid.show('Synchronized', ToastAndroid.SHORT);
-        }
+            /* Load initial referee data */
+            loadRefereeDoc(idEvent, idRing, idReferee).then((data) => {
+                if (data && data.score)
+                {
+                    setRedScore(Number.isInteger(data.score.red) ? data.score.red : parseFloat(data.score.red).toFixed(1));
+                    setBlueScore(Number.isInteger(data.score.blue) ? data.score.blue : parseFloat(data.score.blue).toFixed(1));
+                }
+            });
 
-        /* Check if state update */
-        if (msg['action'] == 'update_state' && msg['id_event'] == idEvent && msg['id_ring'] == idRing)
-        {
-            changeMatchStatus(msg['state']);
-        }    
+            /* Setup status snapshots */
+            onSnapshot(getStatusDocRef(idEvent, idRing), (doc) => {
+                if (doc.exists())
+                {
+                    const data = doc.data();
+                    console.log("Updated status:", data.state);
+                    changeMatchStatus(data.state);
+                }
+            });
+
+            /* Setup referee docs */
+            onSnapshot(getRefereeDocRef(idEvent, idRing, idReferee), (doc) => {
+                if (doc.exists())
+                {
+                    const data = doc.data();
+                    if (data.action && data.score && data.action === ACTION_RESET_SCORE)
+                    {
+                        setRedScore(Number.isInteger(data.score.red) ? data.score.red : parseFloat(data.score.red).toFixed(1));
+                        setBlueScore(Number.isInteger(data.score.blue) ? data.score.blue : parseFloat(data.score.blue).toFixed(1));
+                        ToastAndroid.show('Score updated from server', ToastAndroid.SHORT);
+                    }
+                }
+            });
+
+            /* Show toast */
+            ToastAndroid.show('Logged referee ' + idReferee, ToastAndroid.SHORT);
+        });
     }
 
     /* Change match status */
@@ -65,43 +80,35 @@ const MainScreen = ({ route, navigation }) => {
     /* Check match status stop */
     function isMatchStatusStopped()
     {
-        return matchStatus == 'STOP';
+        return matchStatus == STATUS_STOP;
     }
 
     /* Check match status play */
     function isMatchStatusPlay()
     {
-        return matchStatus == 'PLAY';
-    }  
+        return matchStatus == STATUS_PLAY;
+    }
 
     /* Send score */
     function sendScore(newRedScore, newBlueScore)
-    {   
-        $msg = { key: global.api_key, action : 'score', id_event : idEvent, id_ring: idRing, referee : idReferee, red : newRedScore, blue : newBlueScore };
-        
-        /* Send score */
-        sendMessage(global.WS, $msg);
-
-        /* Set scores */
-        setRedScore(newRedScore);
-        setBlueScore(newBlueScore);
-
-        /* Vibration */
+    {
+        const update = { action: ACTION_UPDATE_SCORE, score: { red: newRedScore, blue: newBlueScore } };
+        updateRefereeDoc(idEvent, idRing, idReferee, update);
         Vibration.vibrate(100);
-    }  
+    }
 
     /* update red score */
     const updateRedScore = (point) => {    
 
         if (isMatchStatusPlay())
-        {
-        /* Set backup score */
-        global.backupRedScore = redScore;
+        {            
+            /* Set backup score */
+            redBackupScore = parseFloat(redScore);                        
 
-        /* Set new score */
-        newScore = Math.round((parseFloat(redScore) + parseFloat(point)) * 10) / 10;
-        newScore = parseFloat(newScore) >= 0 ? newScore : '0';
-        sendScore(newScore, blueScore);
+            /* Set new score */
+            const newRedScore = parseFloat(redScore) + parseFloat(point) < 0 ? 0 : parseFloat(redScore) + parseFloat(point);
+            setRedScore(Number.isInteger(newRedScore) ? newRedScore : parseFloat(newRedScore).toFixed(1));
+            sendScore(Number.isInteger(newRedScore) ? newRedScore : parseFloat(newRedScore).toFixed(1), blueScore);
         }
     };
 
@@ -110,13 +117,13 @@ const MainScreen = ({ route, navigation }) => {
 
         if (isMatchStatusPlay())
         {     
-        /* Set backup score */
-        global.backupBlueScore = blueScore;
+            /* Set backup score */
+            blueBackupScore = parseFloat(blueScore);
 
-        /* Set new score */
-        newScore = Math.round((parseFloat(blueScore) + parseFloat(point)) * 10) / 10;
-        newScore = parseFloat(newScore) >= 0 ? newScore : '0';
-        sendScore(redScore, newScore);
+            /* Set new score */
+            const newBlueScore = parseFloat(blueScore) + parseFloat(point) < 0 ? 0 : parseFloat(blueScore) + parseFloat(point);
+            setBlueScore(Number.isInteger(newBlueScore) ? newBlueScore : parseFloat(newBlueScore).toFixed(1));
+            sendScore(redScore, Number.isInteger(newBlueScore) ? newBlueScore : parseFloat(newBlueScore).toFixed(1));
         }
     };
 
@@ -124,14 +131,22 @@ const MainScreen = ({ route, navigation }) => {
     const undoRedScore = () => {    
         
         /* Set backup score */
-        sendScore(global.backupRedScore, blueScore);
+        if (redBackupScore)
+        {
+            setRedScore(Number.isInteger(redBackupScore) ? redBackupScore : parseFloat(redBackupScore).toFixed(1));
+            sendScore(Number.isInteger(redBackupScore) ? redBackupScore : parseFloat(redBackupScore).toFixed(1), blueScore);
+        }
     }; 
 
     /* undo blue score */
     const undoBlueScore = () => {    
         
         /* Set backup score */
-        sendScore(redScore, global.backupBlueScore);
+        if (blueBackupScore)
+        {
+            setBlueScore(Number.isInteger(blueBackupScore) ? blueBackupScore : parseFloat(blueBackupScore).toFixed(1));
+            sendScore(redScore, Number.isInteger(blueBackupScore) ? blueBackupScore : parseFloat(blueBackupScore).toFixed(1));
+        }
     }; 
 
     /* Check if one button mode */
@@ -150,28 +165,26 @@ const MainScreen = ({ route, navigation }) => {
     function isSparring()
     {
         return specialtyCode === 'SP';
-    }
+    }   
 
     /* reload */
     const goBack = () => {
-        closeWebSocket(global.WS, requestScore, checkMessage);
         navigation.navigate('Home');;
     }    
 
     /* reload */
     const reload = () => {
-        closeWebSocket(global.WS, requestScore, checkMessage);
-        global.WS = setupWebSocket(requestScore, checkMessage);
+        login();
     }
 
     /* On screen load */
     const onScreenLoad = () => {
-        global.WS = setupWebSocket(requestScore, checkMessage);
+        login();
     }
 
-    React.useEffect(() => {
+    useEffect(() => {
         onScreenLoad();
-    }, [])
+    }, [])    
 
     return (
         <View
@@ -198,7 +211,9 @@ const MainScreen = ({ route, navigation }) => {
                 },
                 ]}>
                 <View style={ isBlueOnLeftMode() ? styles.blueButton : styles.redButton} onTouchEnd={() => isBlueOnLeftMode() ? undoBlueScore() : undoRedScore()}>
-                    <Text style={styles.pointText}>{ isBlueOnLeftMode() ? blueScore : redScore} ↺</Text>
+                    <Text style={styles.pointText}>
+                        { isBlueOnLeftMode() ? blueScore : redScore} ↺
+                    </Text>
                 </View>
                 <View style={styles.empty}>
                 </View>                      
@@ -255,7 +270,9 @@ const MainScreen = ({ route, navigation }) => {
                 },
                 ]}>
                 <View style={ isBlueOnLeftMode() ? styles.redButton : styles.blueButton} onTouchEnd={() => isBlueOnLeftMode() ? undoRedScore() : undoBlueScore()}>              
-                    <Text style={styles.pointText}>{ isBlueOnLeftMode() ? redScore : blueScore} ↺</Text>
+                    <Text style={styles.pointText}>
+                        { isBlueOnLeftMode() ? redScore : blueScore} ↺
+                    </Text>
                 </View>
                 <View style={styles.empty}>
                 </View>                           
