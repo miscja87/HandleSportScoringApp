@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import {  View, Text, ToastAndroid, Pressable, Vibration } from 'react-native';
+import { View, Text, ToastAndroid, Pressable, Vibration } from 'react-native';
 import { loginAsReferee, onSnapshot, getStatusDocRef, getRefereeDocRef, loadRefereeDoc, updateRefereeDoc } from './Firestore';
+import AwesomeAlert from 'react-native-awesome-alerts';
 import styles from './Styles';
 
 /* Main screen */
@@ -13,7 +14,10 @@ const MainScreen = ({ route, navigation }) => {
     const idReferee = JSON.stringify(id_referee);
     const specialtyCode = specialty;
 
-    // Constants
+    /* Logout alert */
+    const [showLogoutAlert, setShowLogoutAlert] = useState(false);
+
+    /* Constants */
     const STATUS_OK = 'ok';
     const ACTION_RESET_SCORE = 'reset_score';
     const ACTION_UPDATE_SCORE = 'update_score';
@@ -256,7 +260,7 @@ const MainScreen = ({ route, navigation }) => {
                     </Pressable>
                     <Pressable
                         style={[styles.button, styles.buttonClose]}
-                        onPress={() => goBack() }>
+                        onPress={() => setShowLogoutAlert(true) }>
                         <Text style={styles.textStyle}>EXIT ❌</Text>
                     </Pressable>
                 </View>
@@ -288,6 +292,30 @@ const MainScreen = ({ route, navigation }) => {
                 </View>            
             </View>
         </View>
+        <AwesomeAlert
+                show={showLogoutAlert}
+                showProgress={false}
+                title="Attention!"
+                message="Proceed with logout?"
+                contentStyle={{width:400}}
+                titleStyle={styles.alertTitleStyle}
+                messageStyle={styles.alertTextStyle}
+                confirmButtonTextStyle={styles.alertTextStyle}
+                cancelButtonTextStyle={styles.alertTextStyle}
+                closeOnTouchOutside={false}
+                closeOnHardwareBackPress={false}
+                showCancelButton={true}
+                showConfirmButton={true}
+                confirmText="OK"
+                cancelButtonColor="#ff0000"
+                confirmButtonColor="#1bc98e"
+                onCancelPressed={() => {
+                    setShowLogoutAlert(false);
+                }}
+                onConfirmPressed={() => {
+                    goBack();
+                }}
+            />
         </View>
     );
 };

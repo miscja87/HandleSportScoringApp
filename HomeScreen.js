@@ -1,5 +1,5 @@
 import React from 'react';
-import {  View, Text, TextInput, Pressable, Alert, Linking } from 'react-native';
+import { View, Text, TextInput, Pressable, Linking } from 'react-native';
 import AwesomeAlert from 'react-native-awesome-alerts';
 import styles from './Styles';
 import PackageInfo from './package.json';
